@@ -1,4 +1,4 @@
-module fir_weight_combined #(
+module fir_weight #(
     parameter TAPS = 128,
     parameter FRAC = 15
 )(
