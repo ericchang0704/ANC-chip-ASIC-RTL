@@ -1,4 +1,4 @@
-module fir_weight #(
+module fir #(
     parameter TAPS = 128,
     parameter FRAC = 15
 )(
@@ -34,10 +34,10 @@ module fir_weight #(
                 w_reg[i] <= 32'sd0;
                 x_reg[i] <= 32'sd0;
             end
-            deltaA <= 48'sd0; deltaA_reg <= 48'sd0;
-            deltaA_valid <= 1'b0; deltaA_reg_valid <= 1'b0;
-            prodB <= 48'sd0; prodB_reg <= 48'sd0;
-            prodB_valid <= 1'b0; prodB_reg_valid <= 1'b0;
+            deltaA <= 48'sd0; 
+            deltaA_valid <= 1'b0; 
+            prodB <= 48'sd0; 
+            prodB_valid <= 1'b0; 
             acc <= 64'sd0;
             out_sample <= 32'sd0;
             out_valid <= 1'b0;
@@ -74,7 +74,7 @@ module fir_weight #(
                 end
 
                 // ---- MAC B: output computation ----
-                if (proc_idx-1 != 0 && deltaA_reg_valid) begin
+                if (proc_idx-1 != 0 && deltaA_valid) begin
                     prodB <= $signed(w_reg[proc_idx-2]) * $signed(x_reg[proc_idx-2]);
                     prodB_valid <= 1'b1;
                 end else begin
@@ -82,12 +82,9 @@ module fir_weight #(
                     prodB_valid <= 1'b0;
                 end
 
-                // pipeline shift
-                prodB_reg <= prodB;
-                prodB_reg_valid <= prodB_valid;
 
-                if (prodB_reg_valid) begin
-                    acc <= acc + ($signed(prodB_reg) >>> FRAC);
+                if (prodB_valid) begin
+                    acc <= acc + ($signed(prodB) >>> FRAC);
                 end
 
                 // increment index

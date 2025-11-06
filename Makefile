@@ -1,6 +1,6 @@
 # Simple Makefile for LMS simulation
 TOP = tb_lms_128
-SRC = tb_lms_128.v lms_128_top.v lms_core.v input_buffer.v FIR.v mac_unit.v
+SRC = tb_lms_128.v lms_top.v core.v input_buffer.v FIR.v mac_unit.v
 
 all: run
 
