@@ -19,6 +19,7 @@ module fir #(
     reg signed [47:0] deltaA;
     reg               deltaA_valid;
 
+    reg               weight_valid;
     reg signed [47:0] prodB;
     reg               prodB_valid;
 
@@ -69,12 +70,15 @@ module fir #(
                     deltaA_valid <= 1'b0;
                 end
 
-                if (deltaA_valid && proc_idx != 0) begin
+                if (deltaA_valid) begin
                     w_reg[proc_idx-1] <= w_reg[proc_idx-1] + ($signed(deltaA[31:0]));
+                    weight_valid <= 1'b1;
+                end else begin
+                    weight_valid <= 1'b0;
                 end
 
                 // ---- MAC B: output computation ----
-                if (proc_idx-1 != 0 && deltaA_valid) begin
+                if (weight_valid) begin
                     prodB <= $signed(w_reg[proc_idx-2]) * $signed(x_reg[proc_idx-2]);
                     prodB_valid <= 1'b1;
                 end else begin
@@ -82,16 +86,13 @@ module fir #(
                     prodB_valid <= 1'b0;
                 end
 
-
                 if (prodB_valid) begin
                     acc <= acc + ($signed(prodB[31:0]) );
                 end
-
-                // increment index
+                
                 proc_idx <= proc_idx + 1'b1;
-
                 // FIR done
-                if (proc_idx == TAPS + 2) begin
+                if (proc_idx == TAPS + 3 ) begin
                     out_sample <= acc[31:0];
                     out_valid <= 1'b1;
                     done <= 1'b1;       // notify core
