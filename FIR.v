@@ -16,11 +16,11 @@ module fir_weight #(
     reg signed [31:0] x_reg [0:TAPS-1];
 
     // MAC pipeline registers
-    reg signed [47:0] deltaA, deltaA_reg;
-    reg               deltaA_valid, deltaA_reg_valid;
+    reg signed [47:0] deltaA;
+    reg               deltaA_valid;
 
-    reg signed [47:0] prodB, prodB_reg;
-    reg               prodB_valid, prodB_reg_valid;
+    reg signed [47:0] prodB;
+    reg               prodB_valid;
 
     reg signed [63:0] acc;
     reg [7:0] proc_idx;
@@ -69,12 +69,8 @@ module fir_weight #(
                     deltaA_valid <= 1'b0;
                 end
 
-                // pipeline shift
-                deltaA_reg <= deltaA;
-                deltaA_reg_valid <= deltaA_valid;
-
-                if (deltaA_reg_valid && proc_idx != 0) begin
-                    w_reg[proc_idx-1] <= w_reg[proc_idx-1] + ($signed(deltaA_reg) >>> FRAC);
+                if (deltaA_valid && proc_idx != 0) begin
+                    w_reg[proc_idx-1] <= w_reg[proc_idx-1] + ($signed(deltaA) >>> FRAC);
                 end
 
                 // ---- MAC B: output computation ----
