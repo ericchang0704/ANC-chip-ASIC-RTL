@@ -1,56 +1,84 @@
-module controller #(
-    parameter FRAC = 15
-) (
+module controller (
     input  wire                 clk,
     input  wire                 rst_n,
-    input  wire                 in_valid,       // from input_buffer
-    input  wire signed [15:0]   e_in,
-    input  wire signed [15:0]   x_in,
-    input  wire signed [15:0]   a_in,
-    input  wire signed [15:0]   u_in,           // step-size
 
-    input  wire                 fir_done,       // FIR done signal
-    input  wire signed [31:0]   fir_out,        // FIR output
+    input  wire                 in_valid,           // from vr_merge
+    output reg                  controller_ready,   // controller ready for vr_merge
 
-    output reg  signed [15:0]   x_out,          // feed to FIR
-    output reg  signed [15:0]   weight_adjust,  // (e - a) * u
-    output reg  signed [31:0]   out_sample,     // core output from FIR
-    output reg                  out_valid,      // core output ready
-    output reg                  fir_go          // go signal for FIR
+    input  wire signed [15:0]   e_in,   
+    input  wire signed [15:0]   x_in,   
+    input  wire signed [15:0]   a_in,   
+    input  wire signed [15:0]   u_in,               // step-size
+
+    input  wire                 fir_done,           // FIR done signal
+    output reg                  fir_go              // FIR go signal 
+   
+    input  wire signed [15:0]   fir_out,            // FIR output
+
+    output reg  signed [15:0]   x_out,              // feed to FIR
+    output reg  signed [15:0]   a_out,              // feed to FIR
+    output reg  signed [15:0]   weight_adjust       // (e - a) * u
 );
+    // Buffered inputs (held for algorithmic cycle)
+    reg signed [15:0] e_buf, x_buf, a_buf, u_buf;
 
+    // Subtraction saturation (e-a)
+    wire signed [16:0] sat_in;
+    wire signed [15:0] sat_out;
+    assign sat_in = {e_buf[15], e_buf} - {a_buf[15], a_buf};
+    saturate #(17,16) saturate_inst (.in(sat_in), .out(sat_out));
+
+    // Multiplier module
     reg signed [15:0] mult_a, mult_b;
-    reg signed [31:0] mult_p;
+    wire signed [31:0] mult_p;
     bw_mult bw_mult_weight_adjust (.a(mult_a), .b(mult_b), .p(mult_p));
 
-    localparam S_IDLE = 2'd0, S_START = 2'd1, S_RUN = 2'd2, S_DONE = 2'd3;
+    localparam S_IDLE = 2'd0, S_START = 2'd1, S_PIPE = 2'd2, S_RUN = 2'd3;
     reg [1:0] state;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state <= S_IDLE;
-            x_out <= 32'sd0;
-            weight_adjust <= 15'sd0;
-            out_sample <= 32'sd0;
+            x_out <= 16'sd0;
+            weight_adjust <= 16'sd0;
+            out_sample <= 16'sd0;
             out_valid <= 1'b0;
             fir_go <= 1'b0;
+            controller_ready <= 1'b0;
+            e_buf <= 16'sd0;
+            x_buf <= 16'sd0;
+            a_buf <= 16'sd0;
+            u_buf <= 16'sd0;
         end else begin
-            out_valid <= 1'b0; // default
-            fir_go <= 1'b0;    // default
+            // Defaults
+            out_valid <= 1'b0;       
+            fir_go <= 1'b0;          
+            controller_ready <= 1'b0;
 
+            // FSM
             case (state)
                 S_IDLE: begin
+                    controller_ready <= 1'b1;
                     if (in_valid) begin
-                        // compute weight adjustment
-                        mult_a <= e_in - a_in;
-                        mult_b <= u_in;
+                        // Buffer and hold inputs
+                        e_buf <= e_in;
+                        x_buf <= x_in;
+                        a_buf <= a_in;
+                        u_buf <= u_in;
+
                         state <= S_START;
                     end
                 end
-
                 S_START: begin
-                    weight_adjust <= mult_p;
-                    x_out <= x_in;      // feed input to FIR
+                    // Load multiplier inputs
+                    mult_a <= sat_out;  // Saturated output of (e-a)
+                    mult_b <= u_buf;
+                end
+
+                S_PIPE: begin
+                    weight_adjust <= mult_p >>> 15;     // q1.5*q1.5->q2.30, but first two bits are always same so drop msb and lower 15 bits to get back q1.5
+                    x_out <= x_buf;     // feed input to FIR
+                    a_out <= a_buf;
                     fir_go <= 1'b1;     // signal FIR to start
                     state <= S_RUN;
                 end
@@ -58,15 +86,8 @@ module controller #(
                 S_RUN: begin
                     // wait for FIR to finish
                     if (fir_done) begin
-                        // capture FIR output
-                        out_sample <= fir_out;
-                        out_valid <= 1'b1;  // core output ready
-                        state <= S_DONE;
+                        state <= S_IDLE;
                     end
-                end
-
-                S_DONE: begin
-                    state <= S_IDLE; // ready for next input
                 end
             endcase
         end

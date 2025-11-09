@@ -1,7 +1,7 @@
 module bw_mult # (
 	parameter N = 16
 ) (
-	input wire [N-1:0] a, b,
+	input  wire [N-1:0]   a, b,
 	output wire [2*N-1:0] p
 );
 

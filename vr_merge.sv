@@ -23,7 +23,7 @@ module vr_merge
 
 wire    deal    = o_valid & i_ready;
 
-assign  o_valid = &( i_valid | ~i_en ) & |i_en;
+assign  o_valid = &( i_valid | ~i_en ) & |i_en;     // &( i_valid bitwise-or not enabled ) and (at least one enabled)
 assign  o_ready = { MERGE_N{ deal } } & i_en;
 
 endmodule

@@ -1,46 +1,75 @@
 module fir #(
     parameter TAPS = 128,
-    parameter FRAC = 15
 )(
     input  wire                 clk,
     input  wire                 rst_n,
-    input  wire signed [31:0]   feedforward_in,   // input from core
-    input  wire signed [31:0]   weight_adjust,    // weight update from core
-    input  wire                 go,               // start signal from core
-    output reg  signed [31:0]   out_sample,
+    input  wire signed [15:0]   x_in,               // input from controller
+    input  wire signed [15:0]   a_in,               // input from controller
+    input  wire signed [15:0]   weight_adjust,      // weight update from controller
+    input  wire                 fir_go,             // start signal from controller
+    output reg  signed [15:0]   out_sample,
     output reg                  out_valid,
-    output reg                  done              // signals FIR completion to core
+    output reg                  done                // signals FIR completion to controller
 );
 
-    reg signed [31:0] w_reg [0:TAPS-1];
-    reg signed [31:0] x_reg [0:TAPS-1];
+    reg signed [15:0] w_reg [0:TAPS-1];
+    reg signed [15:0] x_reg [0:TAPS-1];
 
+    // Addition saturation (w+x*weight_adjust)
+    wire signed [16:0] sat_in;
+    wire signed [15:0] sat_out;
+    assign sat_in = (mult_A_prod>>>15)[16:0] - {w_reg[proc_idx-2][15], w_reg[proc_idx-2]};
+    saturate #(17,16) saturate_inst (.in(sat_in), .out(sat_out));
+
+    // Accumulator output saturation (a+accum)
+    wire signed [32:0] sat_a_in;
+    wire signed [31:0] sat_a_out;
+    assign sat_a_in = (acc>>>7)[32:0];
+    saturate #(33,32) saturate_a_inst (.in(sat_a_in), .out(sat_a_out));
+    
     // MAC pipeline registers
-    reg signed [47:0] deltaA;
-    reg               deltaA_valid;
+    reg signed [31:0] mult_A_prod;
+    reg               mult_A_prod_valid;
 
+    reg signed [31:0] mult_B_prod;
+    reg               mult_B_prod_valid;
     reg               weight_valid;
-    reg signed [47:0] prodB;
-    reg               prodB_valid;
+    reg               x_reg_read_valid;     // pipeline reg for output of register read-out mux
+    reg               w_reg_read_valid;
 
-    reg signed [63:0] acc;
-    reg [7:0] proc_idx;
+    // Multiplier modules and pipeline registers
+    reg  signed [15:0] mult_A_a, mult_A_b;
+    wire signed [31:0] mult_A_p;
+    bw_mult bw_mult_A (.a(mult_A_a), .b(mult_A_b), .p(mult_A_p));
+
+    reg  signed [15:0] mult_B_a, mult_B_b;
+    wire signed [31:0] mult_B_p;
+    bw_mult bw_mult_B (.a(mult_B_a), .b(mult_B_b), .p(mult_B_p));
+
+    // Accumulator register
+    reg signed [39:0] acc;      // 7+32+1 (128 of 32 bit values + a_in)
+
+    // Process counter
+    reg        [7:0]  proc_idx;
 
     reg fir_active;
     integer i;
 
-    always @(posedge clk or negedge rst_n) begin
+    always @ (posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             for (i = 0; i < TAPS; i=i+1) begin
-                w_reg[i] <= 32'sd0;
-                x_reg[i] <= 32'sd0;
+                w_reg[i] <= 16'sd0;
+                x_reg[i] <= 16'sd0;
             end
-            deltaA <= 48'sd0; 
-            deltaA_valid <= 1'b0; 
-            prodB <= 48'sd0; 
-            prodB_valid <= 1'b0; 
-            acc <= 64'sd0;
-            out_sample <= 32'sd0;
+            mult_A_prod <= 32'sd0; 
+            mult_A_prod_valid <= 1'b0; 
+            mult_B_prod <= 32'sd0; 
+            mult_B_prod_valid <= 1'b0;
+            x_reg_read_valid <= 1'b0;
+            w_reg_read_valid <= 1'b0;
+            weight_valid <= 1'b0;
+            acc <= 40'sd0;
+            out_sample <= 16'sd0;
             out_valid <= 1'b0;
             done <= 1'b0;
             proc_idx <= 0;
@@ -49,29 +78,38 @@ module fir #(
             out_valid <= 1'b0;
             done <= 1'b0;
 
-            if (go && !fir_active) begin
+            if (fir_go && !fir_active) begin
                 fir_active <= 1'b1;
-                acc <= 64'sd0;
+                acc <= a_in;        // initialize accumulator with a_in
                 proc_idx <= 0;
+                mult_A_a <= weight_adjust;
 
                 for (i = TAPS-1; i > 0; i=i-1) begin
                     x_reg[i] <= x_reg[i-1];
                 end
-                x_reg[0] <=  feedforward_in;  
+                x_reg[0] <=  x_in;  
             end
+
 
             if (fir_active) begin
                 // ---- MAC A: weight update ----
                 if (proc_idx < TAPS) begin
-                    deltaA <= $signed(weight_adjust) * $signed(x_reg[proc_idx]);
-                    deltaA_valid <= 1'b1;
+                    mult_A_b <= x_reg[proc_idx];    // pipeline reg for multiplier input (after register read-out mux)
+                    x_reg_read_valid <= 1'b1;
                 end else begin
-                    deltaA <= 48'sd0;
-                    deltaA_valid <= 1'b0;
+                    x_reg_read_valid <= 1'b0;
                 end
 
-                if (deltaA_valid) begin
-                    w_reg[proc_idx-1] <= w_reg[proc_idx-1] + ($signed(deltaA[31:0]));
+                if (x_reg_read_valid) begin
+                    mult_A_prod <= mult_A_p;
+                    mult_A_prod_valid <= 1'b1;
+                end else begin
+                    mult_A_prod <= 32'sd0;
+                    mult_A_prod_valid <= 1'b0;
+                end
+
+                if (mult_A_prod_valid) begin
+                    w_reg[proc_idx-2] <= sat_out;   // w_reg[proc_idx-2] + mult_A_prod
                     weight_valid <= 1'b1;
                 end else begin
                     weight_valid <= 1'b0;
@@ -79,25 +117,33 @@ module fir #(
 
                 // ---- MAC B: output computation ----
                 if (weight_valid) begin
-                    prodB <= $signed(w_reg[proc_idx-2]) * $signed(x_reg[proc_idx-2]);
-                    prodB_valid <= 1'b1;
+                    mult_B_a <= w_reg[proc_idx-3];  // pipeline reg for multiplier input (after register read-out mux)
+                    mult_B_b <= x_reg[proc_idx-3];
+                    w_reg_read_valid <= 1'b1;
                 end else begin
-                    prodB <= 48'sd0;
-                    prodB_valid <= 1'b0;
+                    w_reg_read_valid <= 1'b0;
                 end
 
-                if (prodB_valid) begin
-                    acc <= acc + ($signed(prodB[31:0]) );
+                if (w_reg_read_valid) begin
+                    mult_B_prod <= mult_B_p;        // $signed(w_reg[proc_idx-4]) * $signed(x_reg[proc_idx-4])
+                    mult_B_prod_valid <= 1'b1;
+                end else begin
+                    mult_B_prod <= 32'sd0;
+                    mult_B_prod_valid <= 1'b0;
+                end
+
+                if (mult_B_prod_valid) begin        // last done in proc_idx == TAPS + 5
+                    acc <= acc + mult_B_prod;       // should be automatically sign extended
                 end
                 
                 proc_idx <= proc_idx + 1'b1;
                 // FIR done
-                if (proc_idx == TAPS + 3 ) begin
-                    out_sample <= acc[31:0];
+                if (proc_idx == TAPS + 6) begin
+                    out_sample <= sat_a_out;        // saturated accum value (16 bits)
                     out_valid <= 1'b1;
-                    done <= 1'b1;       // notify core
-                    fir_active <= 1'b0; // reset for next run
-                    acc <= 64'sd0;
+                    done <= 1'b1;                   // notify controller
+                    fir_active <= 1'b0;             // reset for next run
+                    acc <= 40'sd0;
                     proc_idx <= 0;
                 end
             end
