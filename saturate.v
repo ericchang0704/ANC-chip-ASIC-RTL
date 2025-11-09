@@ -9,6 +9,6 @@ module saturate # (
 wire not_oververflow;
 assign not_oververflow = &(in[IN_W-1:OUT_W-1]) | ~(|in[IN_W-1:OUT_W-1]);	// truncated range and sign bit same
 assign not_oververflow ? in[OUT_W-1:0] :
-						{in[IN_W-1], (OUT_W-1){~in[IN_W-1]}};				// set max(pos)/min(neg) depending on sign bit
+						{in[IN_W-1], {(OUT_W-1){~in[IN_W-1]}}};				// set max(pos)/min(neg) depending on sign bit
 
 endmodule
