@@ -8,12 +8,10 @@ module controller (
     input  wire signed [15:0]   e_in,   
     input  wire signed [15:0]   x_in,   
     input  wire signed [15:0]   a_in,   
-    input  wire signed [15:0]   u_in,               // step-size
+    input  wire signed [15:0]   u_in,               // step-size 
 
     input  wire                 fir_done,           // FIR done signal
     output reg                  fir_go,              // FIR go signal 
-   
-    input  wire signed [15:0]   fir_out,            // FIR output
 
     output reg  signed [15:0]   x_out,              // feed to FIR
     output reg  signed [15:0]   a_out,              // feed to FIR
@@ -74,7 +72,7 @@ module controller (
                 end
 
                 S_PIPE: begin
-                    weight_adjust <= mult_p >>> 15;     // q1.5*q1.5->q2.30, but first two bits are always same so drop msb and lower 15 bits to get back q1.5
+                    weight_adjust <= mult_p >>> 15;     // q1.15*q1.15->q2.30, but first two bits are always same so drop msb and lower 15 bits to get back q1.5
                     x_out <= x_buf;     // feed input to FIR
                     a_out <= a_buf;
                     fir_go <= 1'b1;     // signal FIR to start

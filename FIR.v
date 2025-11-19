@@ -1,5 +1,6 @@
 module fir #(
-    parameter TAPS = 128
+    parameter TAPS = 256,
+    parameter M = 8         // for register sizing based on TAPS = 2^M
 )(
     input  wire                 clk,
     input  wire                 rst_n,
@@ -13,7 +14,7 @@ module fir #(
 );
 
     // Accumulator register
-    reg signed [39:0] acc;      // 7+32+1 (128 of 32 bit values + a_in)
+    reg signed [M+32:0] acc;      // 7+32+1 (128 of 32 bit values + a_in)
 
     reg signed [15:0] w_reg [0:TAPS-1];
     reg signed [15:0] x_reg [0:TAPS-1];
@@ -30,7 +31,7 @@ module fir #(
 
 
     // Process counter
-    reg        [7:0]  proc_idx;
+    reg        [M:0]  proc_idx;
 
     // Addition saturation (w+x*weight_adjust)
     wire signed [16:0] sat_in;
@@ -39,10 +40,10 @@ module fir #(
     saturate #(17,16) saturate_inst (.in(sat_in), .out(sat_out));
 
     // Accumulator output saturation (a+accum)
-    wire signed [24:0] sat_a_in;
+    wire signed [M+32-15:0] sat_a_in;
     wire signed [15:0] sat_a_out;
-    assign sat_a_in = acc[39:15];
-    saturate #(25,16) saturate_a_inst (.in(sat_a_in), .out(sat_a_out));
+    assign sat_a_in = acc[M+32:15];     // x_reg is q1.15 so dropping right 15 bits and then saturating top bits to 16 bits
+    saturate #(M+32-15+1,16) saturate_a_inst (.in(sat_a_in), .out(sat_a_out));
     
     // Multiplier modules and pipeline registers
     reg  signed [15:0] mult_A_a, mult_A_b;
@@ -69,11 +70,11 @@ module fir #(
             x_reg_read_valid <= 1'b0;
             w_reg_read_valid <= 1'b0;
             weight_valid <= 1'b0;
-            acc <= 40'sd0;
+            acc <= {(M+33){1'b0}};
             out_sample <= 16'sd0;
             out_valid <= 1'b0;
             done <= 1'b0;
-            proc_idx <= 0;
+            proc_idx <= {(M+1){1'b0}};
             fir_active <= 1'b0;
         end else begin
             out_valid <= 1'b0;
@@ -82,7 +83,7 @@ module fir #(
             if (fir_go && !fir_active) begin
                 fir_active <= 1'b1;
                 acc <= a_in;        // initialize accumulator with a_in
-                proc_idx <= 0;
+                proc_idx <= {(M+1){1'b0}};
                 mult_A_a <= weight_adjust;
 
                 for (i = TAPS-1; i > 0; i=i-1) begin
@@ -144,8 +145,8 @@ module fir #(
                     out_valid <= 1'b1;
                     done <= 1'b1;                   // notify controller
                     fir_active <= 1'b0;             // reset for next run
-                    acc <= 40'sd0;
-                    proc_idx <= 0;
+                    acc <= {(M+33){1'b0}};
+                    proc_idx <= {(M+1){1'b0}};
                 end
             end
         end

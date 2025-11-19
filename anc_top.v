@@ -40,7 +40,6 @@ controller controller_inst (
     .u_in(u_in),
     .fir_done(fir_done),               // signal back when FIR is done
     .fir_go(fir_go),                   // signal for FIR to start
-    .fir_out(fir_out),
     .x_out(x_controller),
     .a_out(a_controller),
     .weight_adjust(weight_adjust_controller)
