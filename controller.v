@@ -23,7 +23,7 @@ module controller (
     // Subtraction saturation (e-a)
     wire signed [16:0] sat_in;
     wire signed [15:0] sat_out;
-    assign sat_in = {e_buf[15], e_buf} - {a_buf[15], a_buf};
+    assign sat_in = {a_buf[15], a_buf} - {e_buf[15], e_buf};
     saturate #(17,16) saturate_inst (.in(sat_in), .out(sat_out));
 
     // Multiplier module
