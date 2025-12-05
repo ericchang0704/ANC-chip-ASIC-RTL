@@ -13,7 +13,8 @@ module anc_top (
     output wire               out_valid     // output valid signal
 );
 
-parameter TAPS = 256;
+parameter TAPS = 512;
+parameter M = 9;        // for register sizing based on TAPS = 2^M
 
 // ------------------------
 // Internal wires
@@ -49,7 +50,8 @@ controller controller_inst (
 // Dual-MAC FIR + Weight Module
 // ------------------------
 fir #(
-    .TAPS(TAPS)
+    .TAPS(TAPS),
+    .M(M)
 ) fir_inst (
     .clk(clk),
     .rst_n(rst_n),
