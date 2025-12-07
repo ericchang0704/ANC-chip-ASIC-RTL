@@ -14,7 +14,9 @@ module anc_top (
     input  wire signed [15:0] a_in,         // desired output
     input  wire signed [15:0] u_in,         // LMS step size (learning rate)
     output wire signed [15:0] out_sample,   // FIR filter output
-    output wire               out_valid     // output valid signal
+    output wire               out_valid,    // output valid signal
+    
+    input       signed  [25:0]  weight_inject
 );
 
 parameter TAPS = 256;
@@ -68,7 +70,9 @@ fir #(
     .fir_go(fir_go),
     .out_sample(out_sample),
     .out_valid(out_valid),
-    .done(fir_done)
+    .done(fir_done),
+    .weight_inject      ( weight_inject     ),
+    .bypass_mode_sel    ( bypass_mode_sel   )
 );
 
 endmodule

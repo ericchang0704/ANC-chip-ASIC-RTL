@@ -27,7 +27,10 @@ module hardware_top (
 	output wire               out_valid,    // output valid signal
 
 	// Initialization bits (serially shifted in on reset)
-	input wire init_in
+	input wire init_in,
+    
+        // FPGA bypass
+        input       signed  [25:0]  weight_inject
 );
 
 wire signed [15:0] e_in;
@@ -100,7 +103,8 @@ anc_top anc_top_inst (
 	.x_in(x_in),
 	.a_in(a_in),
 	.out_sample(out_sample),
-	.out_valid(out_valid)
+	.out_valid(out_valid),
+        .weight_inject  ( weight_inject )
 );
 
 // Plus stuff for DAC and interface with FPGA

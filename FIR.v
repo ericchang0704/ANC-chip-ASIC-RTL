@@ -10,7 +10,10 @@ module fir #(
     input  wire                 fir_go,             // start signal from controller
     output reg  signed [15:0]   out_sample,
     output reg                  out_valid,
-    output reg                  done                // signals FIR completion to controller
+    output reg                  done,               // signals FIR completion to controller
+
+    input       signed  [25:0]  weight_inject,      // injected weight
+    input                       bypass_mode_sel     // FPGA bypass: 0 - on chip, 1 - fpga
 );
 
     // Accumulator register
@@ -115,7 +118,7 @@ module fir #(
                 end
 
                 if (mult_A_prod_valid) begin
-                    w_reg[proc_idx-2] <= sat_out;   // w_reg[proc_idx-2] + mult_A_prod
+                    w_reg[proc_idx-2] <= bypass_mode_sel ? weight_inject : sat_out;   // w_reg[proc_idx-2] + mult_A_prod
                     weight_valid <= 1'b1;
                 end else begin
                     weight_valid <= 1'b0;
