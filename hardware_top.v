@@ -37,9 +37,9 @@ wire a_vld, a_rdy;
 wire u_vld, u_rdy;
 
 i2s_rx i2s_rx_e (.clk(clk), .rst_n(rst_n), .ws(ws), .sck(sck), .sd(sd_e), .dout(e_in), .dout_vld(e_vld), .dout_rdy(e_rdy), .sck_period(i2s_in_clk_period));
-i2s_rx i2s_rx_x (.clk(clk), .rst_n(rst_n), .ws(ws), .sck(sck), .sd(sd_x), .dout(x_in), .dout_vld(x_vld), .dout_rdy(x_rdy), .sck_period(i2s_in_clk_period));
-i2s_rx i2s_rx_a (.clk(clk), .rst_n(rst_n), .ws(ws), .sck(sck), .sd(sd_a), .dout(a_in), .dout_vld(a_vld), .dout_rdy(a_rdy), .sck_period(i2s_in_clk_period));
-i2s_rx i2s_rx_u (.clk(clk), .rst_n(rst_n), .ws(ws), .sck(sck), .sd(sd_u), .dout(u_in), .dout_vld(u_vld), .dout_rdy(u_rdy), .sck_period(i2s_in_clk_period));
+i2s_rx i2s_rx_x (.clk(clk), .rst_n(rst_n), .sd(sd_x), .dout(x_in), .dout_vld(x_vld), .dout_rdy(x_rdy), .sck_period(i2s_in_clk_period));
+i2s_rx i2s_rx_a (.clk(clk), .rst_n(rst_n), .sd(sd_a), .dout(a_in), .dout_vld(a_vld), .dout_rdy(a_rdy), .sck_period(i2s_in_clk_period));
+i2s_rx i2s_rx_u (.clk(clk), .rst_n(rst_n), .sd(sd_u), .dout(u_in), .dout_vld(u_vld), .dout_rdy(u_rdy), .sck_period(i2s_in_clk_period));
 
 // Handshake with controller
 wire data_valid;
