@@ -19,13 +19,14 @@ module hardware_top (
 	output wire sck_out,
 	output wire sd_out,
 
-	output wire fir_go,
+	output wire fir_act,
 
 	// Initialization bits (serially shifted in on reset)
 	input wire init_in,
     
         // FPGA bypass
-        input       signed  [25:0]  weight_inject
+        input       signed  [25:0]  weight_inject,
+		input wire bypass_ready
 );
 
 wire signed [15:0] e_in;
@@ -101,8 +102,9 @@ anc_top anc_top_inst (
 	.a_in(a_in),
 	.out_sample(out_sample),
 	.out_valid(out_valid),
-		.fir_go(fir_go),
-        .weight_inject  ( weight_inject )
+        .weight_inject  ( weight_inject ),
+		.bypass_ready(bypass_ready),
+		.fir_act(fir_act)
 );
 
 i2s_tx i2s_tx_inst (

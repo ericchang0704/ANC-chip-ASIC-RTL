@@ -13,7 +13,9 @@ module fir #(
     output reg                  done,               // signals FIR completion to controller
 
     input       signed  [25:0]  weight_inject,      // injected weight
-    input                       bypass_mode_sel     // FPGA bypass: 0 - on chip, 1 - fpga
+    input                       bypass_mode_sel,     // FPGA bypass: 0 - on chip, 1 - fpga
+    input wire                  bypass_ready,
+    output wire                 fir_act
 );
 
     // Accumulator register
@@ -62,6 +64,7 @@ module fir #(
     bw_mult bw_mult_B (.a(mult_B_a), .b(mult_B_b), .p(mult_B_p));
 
     reg fir_active;
+    assign fir_act = fir_active;
     integer i;
 
     always @ (posedge clk or negedge rst_n) begin
@@ -90,7 +93,11 @@ module fir #(
             if (fir_go && !fir_active) begin
                 fir_active <= 1'b1;
                 acc <= a_in <<< 15;        // initialize accumulator with a_in
-                proc_idx <= {(M+1){1'b0}};
+                if (~bypass_mode_sel) begin
+                    proc_idx <= {(M+1){1'b0}};
+                end else begin
+                    proc_idx <= 2;
+                end
                 mult_A_a <= weight_adjust;
 
                 for (i = TAPS-1; i > 0; i=i-1) begin
@@ -100,16 +107,16 @@ module fir #(
             end
 
 
-            if (fir_active) begin
+            if (fir_active && (bypass_ready || ~bypass_mode_sel)) begin
                 // ---- MAC A: weight update ----
-                if (proc_idx < TAPS) begin
+                if (proc_idx < TAPS && ~bypass_mode_sel) begin
                     mult_A_b <= x_reg[proc_idx];    // pipeline reg for multiplier input (after register read-out mux)
                     x_reg_read_valid <= 1'b1;
                 end else begin
                     x_reg_read_valid <= 1'b0;
                 end
 
-                if (x_reg_read_valid) begin
+                if (x_reg_read_valid && ~bypass_mode_sel) begin
                     mult_A_prod <= mult_A_p;
                     mult_A_prod_valid <= 1'b1;
                 end else begin
@@ -117,7 +124,7 @@ module fir #(
                     mult_A_prod_valid <= 1'b0;
                 end
 
-                if (mult_A_prod_valid) begin
+                if (mult_A_prod_valid || (bypass_mode_sel && proc_idx < TAPS+2)) begin
                     w_reg[proc_idx-2] <= bypass_mode_sel ? weight_inject : sat_out;   // w_reg[proc_idx-2] + mult_A_prod
                     weight_valid <= 1'b1;
                 end else begin
