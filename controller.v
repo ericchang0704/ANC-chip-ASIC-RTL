@@ -40,7 +40,7 @@ module controller (
         .rst_n(rst_n),
         .a_in(a_buf),
         .a_out(a_delay),
-        .sel(9));   // delay of 10 at 48khz (208us)
+        .sel(0));   // delay of 10 at 48khz (208us)
 
 
     localparam S_IDLE = 2'd0, S_START = 2'd1, S_PIPE = 2'd2, S_RUN = 2'd3;

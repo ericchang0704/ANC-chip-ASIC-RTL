@@ -13,8 +13,8 @@ module anc_top (
     output wire               out_valid     // output valid signal
 );
 
-parameter TAPS = 512;
-parameter M = 9;        // for register sizing based on TAPS = 2^M
+parameter TAPS = 256;
+parameter M = 8;        // for register sizing based on TAPS = 2^M
 
 // ------------------------
 // Internal wires
