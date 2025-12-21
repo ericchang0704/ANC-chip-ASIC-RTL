@@ -33,7 +33,7 @@ module controller (
         .rst_n(rst_n),
         .a_in(a_buf),
         .a_out(a_delay),
-        .sel(0));   // delay of D+1 samples at 48khz ((D+1)*20.8us)
+        .sel(prog_delay_sel));   // delay of D+1 samples at 48khz ((D+1)*20.8us)
 
     // Subtraction saturation (e-a)
     wire signed [16:0] sat_in;
